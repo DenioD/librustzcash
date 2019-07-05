@@ -181,6 +181,8 @@ pub extern "system" fn librustzcash_init_zksnark_params(
     )
 }
 
+// We ignore the values of sprout_path/sprout_hash but keep
+// same function signature for convenience
 fn init_zksnark_params(
     spend_path: &Path,
     spend_hash: *const c_char,
@@ -205,7 +207,8 @@ fn init_zksnark_params(
         .expect("hash should be a valid string");
 
     // Load params
-    let (spend_params, spend_vk, output_params, output_vk, sprout_vk) = load_parameters(
+    //let (spend_params, spend_vk, output_params, output_vk, sprout_vk) = load_parameters(
+    let (spend_params, spend_vk, output_params, output_vk) = load_parameters(
         spend_path,
         spend_hash,
         output_path,
@@ -223,7 +226,7 @@ fn init_zksnark_params(
 
         SAPLING_SPEND_VK = Some(spend_vk);
         SAPLING_OUTPUT_VK = Some(output_vk);
-        SPROUT_GROTH16_VK = Some(sprout_vk.unwrap());
+        //SPROUT_GROTH16_VK = Some(sprout_vk.unwrap());
     }
 }
 
@@ -864,7 +867,7 @@ pub extern "system" fn librustzcash_sprout_prove(
     )
     .expect("couldn't load Sprout groth16 parameters file");
 
-    let mut sprout_fs = BufReader::with_capacity(1024 * 1024, sprout_fs);
+    //let mut sprout_fs = BufReader::with_capacity(1024 * 1024, sprout_fs);
 
     let params = Parameters::<Bls12>::read(&mut sprout_fs, false)
         .expect("couldn't deserialize Sprout JoinSplit parameters file");
