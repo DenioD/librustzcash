@@ -50,7 +50,7 @@ pub mod transact;
 const ANCHOR_OFFSET: u32 = 10;
 
 #[cfg(feature = "mainnet")]
-const SAPLING_ACTIVATION_HEIGHT: i32 = 419_200;
+const SAPLING_ACTIVATION_HEIGHT: i32 = 227_520;
 
 #[cfg(not(feature = "mainnet"))]
 const SAPLING_ACTIVATION_HEIGHT: i32 = 280_000;
