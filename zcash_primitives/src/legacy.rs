@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn p2pkh() {
-        let addr = TransparentAddress::PublicKey([4; 20]);
+        let addr = TransparentAddress::PublicKey([4; 21]);
         assert_eq!(
             &addr.script().0,
             &[
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn p2sh() {
-        let addr = TransparentAddress::Script([7; 20]);
+        let addr = TransparentAddress::Script([7; 21]);
         assert_eq!(
             &addr.script().0,
             &[

@@ -220,13 +220,13 @@ pub fn encode_transparent_address(
 ) -> String {
     let decoded = match addr {
         TransparentAddress::PublicKey(key_id) => {
-            let mut decoded = vec![0; pubkey_version.len() + 20];
+            let mut decoded = vec![0; pubkey_version.len() + 21];
             decoded[..pubkey_version.len()].copy_from_slice(pubkey_version);
             decoded[pubkey_version.len()..].copy_from_slice(key_id);
             decoded
         }
         TransparentAddress::Script(script_id) => {
-            let mut decoded = vec![0; script_version.len() + 20];
+            let mut decoded = vec![0; script_version.len() + 21];
             decoded[..script_version.len()].copy_from_slice(script_version);
             decoded[script_version.len()..].copy_from_slice(script_id);
             decoded
