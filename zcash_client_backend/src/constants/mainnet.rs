@@ -25,7 +25,7 @@ pub const HRP_SAPLING_EXTENDED_FULL_VIEWING_KEY: &str = "zxviews";
 ///
 /// [`PaymentAddress`]: sapling_crypto::primitives::PaymentAddress
 /// [Zcash Protocol Specification]: https://github.com/zcash/zips/blob/master/protocol/protocol.pdf
-pub const HRP_SAPLING_PAYMENT_ADDRESS: &str = "zs1";
+pub const HRP_SAPLING_PAYMENT_ADDRESS: &str = "zs";
 
 /// The prefix for a Base58Check-encoded mainnet [`TransparentAddress::PublicKey`].
 ///
