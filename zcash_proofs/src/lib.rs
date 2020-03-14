@@ -1,10 +1,10 @@
-extern crate bellman;
-extern crate blake2_rfc;
-extern crate byteorder;
-extern crate ff;
-extern crate pairing;
-extern crate rand;
-extern crate sapling_crypto;
+//! *Zcash circuits and proofs.*
+//!
+//! `zcash_proofs` contains the zk-SNARK circuits used by Zcash, and the APIs for creating
+//! and verifying proofs.
+
+// Catch documentation errors caused by code changes.
+#![deny(intra_doc_link_resolution_failure)]
 
 use bellman::groth16::{prepare_verifying_key, Parameters, PreparedVerifyingKey, VerifyingKey};
 use pairing::bls12_381::Bls12;
@@ -12,8 +12,13 @@ use std::fs::File;
 use std::io::{self, BufReader};
 use std::path::Path;
 
+pub mod circuit;
 mod hashreader;
 pub mod sapling;
+pub mod sprout;
+
+#[cfg(feature = "local-prover")]
+pub mod prover;
 
 pub fn load_parameters(
     spend_path: &Path,

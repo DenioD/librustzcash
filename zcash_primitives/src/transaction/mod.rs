@@ -1,13 +1,16 @@
+//! Structs and methods for handling Zcash transactions.
+
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use hex;
-use sapling_crypto::redjubjub::Signature;
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::ops::Deref;
 
-use serialize::Vector;
+use crate::redjubjub::Signature;
+use crate::serialize::Vector;
 
+pub mod builder;
 pub mod components;
 mod sighash;
 
@@ -23,12 +26,12 @@ const OVERWINTER_TX_VERSION: u32 = 3;
 const SAPLING_VERSION_GROUP_ID: u32 = 0x892F2085;
 const SAPLING_TX_VERSION: u32 = 4;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct TxId(pub [u8; 32]);
 
 impl fmt::Display for TxId {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        let mut data = self.0.clone();
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut data = self.0;
         data.reverse();
         formatter.write_str(&hex::encode(data))
     }
@@ -46,6 +49,12 @@ impl Deref for Transaction {
 
     fn deref(&self) -> &TransactionData {
         &self.data
+    }
+}
+
+impl PartialEq for Transaction {
+    fn eq(&self, other: &Transaction) -> bool {
+        self.txid == other.txid
     }
 }
 
@@ -67,7 +76,7 @@ pub struct TransactionData {
 }
 
 impl std::fmt::Debug for TransactionData {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(
             f,
             "TransactionData(
@@ -111,7 +120,7 @@ impl TransactionData {
             vout: vec![],
             lock_time: 0,
             expiry_height: 0,
-            value_balance: Amount(0),
+            value_balance: Amount::zero(),
             shielded_spends: vec![],
             shielded_outputs: vec![],
             joinsplits: vec![],
@@ -157,9 +166,10 @@ impl Transaction {
         let overwintered = (header >> 31) == 1;
         let version = header & 0x7FFFFFFF;
 
-        let version_group_id = match overwintered {
-            true => reader.read_u32::<LittleEndian>()?,
-            false => 0,
+        let version_group_id = if overwintered {
+            reader.read_u32::<LittleEndian>()?
+        } else {
+            0
         };
 
         let is_overwinter_v3 = overwintered
@@ -178,18 +188,24 @@ impl Transaction {
         let vin = Vector::read(&mut reader, TxIn::read)?;
         let vout = Vector::read(&mut reader, TxOut::read)?;
         let lock_time = reader.read_u32::<LittleEndian>()?;
-        let expiry_height = match is_overwinter_v3 || is_sapling_v4 {
-            true => reader.read_u32::<LittleEndian>()?,
-            false => 0,
+        let expiry_height = if is_overwinter_v3 || is_sapling_v4 {
+            reader.read_u32::<LittleEndian>()?
+        } else {
+            0
         };
 
         let (value_balance, shielded_spends, shielded_outputs) = if is_sapling_v4 {
-            let vb = Amount::read_i64(&mut reader, true)?;
+            let vb = {
+                let mut tmp = [0; 8];
+                reader.read_exact(&mut tmp)?;
+                Amount::from_i64_le_bytes(tmp)
+            }
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "valueBalance out of range"))?;
             let ss = Vector::read(&mut reader, SpendDescription::read)?;
             let so = Vector::read(&mut reader, OutputDescription::read)?;
             (vb, ss, so)
         } else {
-            (Amount(0), vec![], vec![])
+            (Amount::zero(), vec![], vec![])
         };
 
         let (joinsplits, joinsplit_pubkey, joinsplit_sig) = if version >= 2 {
@@ -211,9 +227,10 @@ impl Transaction {
         };
 
         let binding_sig =
-            match is_sapling_v4 && !(shielded_spends.is_empty() && shielded_outputs.is_empty()) {
-                true => Some(Signature::read(&mut reader)?),
-                false => None,
+            if is_sapling_v4 && !(shielded_spends.is_empty() && shielded_outputs.is_empty()) {
+                Some(Signature::read(&mut reader)?)
+            } else {
+                None
             };
 
         Transaction::from_data(TransactionData {
@@ -261,7 +278,7 @@ impl Transaction {
         }
 
         if is_sapling_v4 {
-            writer.write_i64::<LittleEndian>(self.value_balance.0)?;
+            writer.write_all(&self.value_balance.to_i64_le_bytes())?;
             Vector::write(&mut writer, &self.shielded_spends, |w, e| e.write(w))?;
             Vector::write(&mut writer, &self.shielded_outputs, |w, e| e.write(w))?;
         }

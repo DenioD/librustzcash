@@ -1,10 +1,10 @@
 use ff::{PrimeField, PrimeFieldRepr};
 use pairing::bls12_381::Bls12;
-use rand::{OsRng, Rng};
-use sapling_crypto::jubjub::{edwards, JubjubBls12};
-use sapling_crypto::primitives::{Diversifier, ViewingKey};
+use rand_core::{OsRng, RngCore};
+use zcash_primitives::jubjub::{edwards, JubjubBls12};
+use zcash_primitives::primitives::{Diversifier, ViewingKey};
 
-use {
+use crate::{
     librustzcash_sapling_generate_r, librustzcash_sapling_ka_agree,
     librustzcash_sapling_ka_derivepublic,
 };
@@ -12,7 +12,7 @@ use {
 #[test]
 fn test_key_agreement() {
     let params = JubjubBls12::new();
-    let mut rng = OsRng::new().unwrap();
+    let mut rng = OsRng;
 
     // Create random viewing key
     let vk = ViewingKey::<Bls12> {
@@ -22,7 +22,9 @@ fn test_key_agreement() {
 
     // Create a random address with the viewing key
     let addr = loop {
-        match vk.into_payment_address(Diversifier(rng.gen()), &params) {
+        let mut d = [0; 11];
+        rng.fill_bytes(&mut d);
+        match vk.to_payment_address(Diversifier(d), &params) {
             Some(a) => break a,
             None => {}
         }
@@ -44,7 +46,7 @@ fn test_key_agreement() {
 
     // Serialize pk_d for the call to librustzcash_sapling_ka_agree
     let mut addr_pk_d = [0u8; 32];
-    addr.pk_d.write(&mut addr_pk_d[..]).unwrap();
+    addr.pk_d().write(&mut addr_pk_d[..]).unwrap();
 
     assert!(librustzcash_sapling_ka_agree(
         &addr_pk_d,
@@ -56,7 +58,7 @@ fn test_key_agreement() {
     // using the diversifier and esk.
     let mut epk = [0u8; 32];
     assert!(librustzcash_sapling_ka_derivepublic(
-        &addr.diversifier.0,
+        &addr.diversifier().0,
         &esk,
         &mut epk
     ));

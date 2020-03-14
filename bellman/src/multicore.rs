@@ -1,20 +1,21 @@
-//! This is an interface for dealing with the kinds of
-//! parallel computations involved in bellman. It's
-//! currently just a thin wrapper around CpuPool and
-//! crossbeam but may be extended in the future to
-//! allow for various parallelism strategies.
+//! An interface for dealing with the kinds of parallel computations involved in
+//! `bellman`. It's currently just a thin wrapper around [`CpuPool`] and
+//! [`crossbeam`] but may be extended in the future to allow for various
+//! parallelism strategies.
+//!
+//! [`CpuPool`]: futures_cpupool::CpuPool
 
 #[cfg(feature = "multicore")]
 mod implementation {
-    use num_cpus;
+    use crossbeam::{self, thread::Scope};
     use futures::{Future, IntoFuture, Poll};
-    use futures_cpupool::{CpuPool, CpuFuture};
-    use crossbeam::{self, Scope};
+    use futures_cpupool::{CpuFuture, CpuPool};
+    use num_cpus;
 
     #[derive(Clone)]
     pub struct Worker {
         cpus: usize,
-        pool: CpuPool
+        pool: CpuPool,
     }
 
     impl Worker {
@@ -23,8 +24,8 @@ mod implementation {
         // CPUs configured.
         pub(crate) fn new_with_cpus(cpus: usize) -> Worker {
             Worker {
-                cpus: cpus,
-                pool: CpuPool::new(cpus)
+                cpus,
+                pool: CpuPool::new(cpus),
             }
         }
 
@@ -36,26 +37,22 @@ mod implementation {
             log2_floor(self.cpus)
         }
 
-        pub fn compute<F, R>(
-            &self, f: F
-        ) -> WorkerFuture<R::Item, R::Error>
-            where F: FnOnce() -> R + Send + 'static,
-                R: IntoFuture + 'static,
-                R::Future: Send + 'static,
-                R::Item: Send + 'static,
-                R::Error: Send + 'static
+        pub fn compute<F, R>(&self, f: F) -> WorkerFuture<R::Item, R::Error>
+        where
+            F: FnOnce() -> R + Send + 'static,
+            R: IntoFuture + 'static,
+            R::Future: Send + 'static,
+            R::Item: Send + 'static,
+            R::Error: Send + 'static,
         {
             WorkerFuture {
-                future: self.pool.spawn_fn(f)
+                future: self.pool.spawn_fn(f),
             }
         }
 
-        pub fn scope<'a, F, R>(
-            &self,
-            elements: usize,
-            f: F
-        ) -> R
-            where F: FnOnce(&Scope<'a>, usize) -> R
+        pub fn scope<'a, F, R>(&self, elements: usize, f: F) -> R
+        where
+            F: FnOnce(&Scope<'a>, usize) -> R,
         {
             let chunk_size = if elements < self.cpus {
                 1
@@ -63,22 +60,21 @@ mod implementation {
                 elements / self.cpus
             };
 
-            crossbeam::scope(|scope| {
-                f(scope, chunk_size)
-            })
+            // TODO: Handle case where threads fail
+            crossbeam::scope(|scope| f(scope, chunk_size))
+                .expect("Threads aren't allowed to fail yet")
         }
     }
 
     pub struct WorkerFuture<T, E> {
-        future: CpuFuture<T, E>
+        future: CpuFuture<T, E>,
     }
 
     impl<T: Send + 'static, E: Send + 'static> Future for WorkerFuture<T, E> {
         type Item = T;
         type Error = E;
 
-        fn poll(&mut self) -> Poll<Self::Item, Self::Error>
-        {
+        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
             self.future.poll()
         }
     }
@@ -88,7 +84,7 @@ mod implementation {
 
         let mut pow = 0;
 
-        while (1 << (pow+1)) <= num {
+        while (1 << (pow + 1)) <= num {
             pow += 1;
         }
 
@@ -159,8 +155,8 @@ mod implementation {
     pub struct DummyScope;
 
     impl DummyScope {
-        pub fn spawn<F: FnOnce()>(&self, f: F) {
-            f();
+        pub fn spawn<F: FnOnce(&DummyScope)>(&self, f: F) {
+            f(self);
         }
     }
 }

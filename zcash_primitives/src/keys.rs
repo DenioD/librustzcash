@@ -1,24 +1,29 @@
 //! Sapling key components.
 //!
-//! Implements section 4.2.2 of the Zcash Protocol Specification.
+//! Implements [section 4.2.2] of the Zcash Protocol Specification.
+//!
+//! [section 4.2.2]: https://zips.z.cash/protocol/protocol.pdf#saplingkeycomponents
 
-use blake2_rfc::blake2b::{Blake2b, Blake2bResult};
-use ff::{PrimeField, PrimeFieldRepr};
-use sapling_crypto::{
+use crate::{
     jubjub::{edwards, FixedGenerators, JubjubEngine, JubjubParams, ToUniform, Unknown},
     primitives::{ProofGenerationKey, ViewingKey},
 };
+use blake2b_simd::{Hash as Blake2bHash, Params as Blake2bParams};
+use ff::{PrimeField, PrimeFieldRepr};
 use std::io::{self, Read, Write};
 
-pub const PRF_EXPAND_PERSONALIZATION: &'static [u8; 16] = b"Zcash_ExpandSeed";
+pub const PRF_EXPAND_PERSONALIZATION: &[u8; 16] = b"Zcash_ExpandSeed";
 
 /// PRF^expand(sk, t) := BLAKE2b-512("Zcash_ExpandSeed", sk || t)
-pub fn prf_expand(sk: &[u8], t: &[u8]) -> Blake2bResult {
+pub fn prf_expand(sk: &[u8], t: &[u8]) -> Blake2bHash {
     prf_expand_vec(sk, &[t])
 }
 
-pub fn prf_expand_vec(sk: &[u8], ts: &[&[u8]]) -> Blake2bResult {
-    let mut h = Blake2b::with_params(64, &[], &[], PRF_EXPAND_PERSONALIZATION);
+pub fn prf_expand_vec(sk: &[u8], ts: &[&[u8]]) -> Blake2bHash {
+    let mut h = Blake2bParams::new()
+        .hash_length(64)
+        .personal(PRF_EXPAND_PERSONALIZATION)
+        .to_state();
     h.update(sk);
     for t in ts {
         h.update(t);
@@ -108,7 +113,7 @@ impl<E: JubjubEngine> Clone for FullViewingKey<E> {
                 ak: self.vk.ak.clone(),
                 nk: self.vk.nk.clone(),
             },
-            ovk: self.ovk.clone(),
+            ovk: self.ovk,
         }
     }
 }
@@ -184,8 +189,8 @@ impl<E: JubjubEngine> FullViewingKey<E> {
 
 #[cfg(test)]
 mod tests {
+    use crate::jubjub::{edwards, FixedGenerators, JubjubParams, PrimeOrder};
     use pairing::bls12_381::Bls12;
-    use sapling_crypto::jubjub::{edwards, FixedGenerators, JubjubParams, PrimeOrder};
     use std::error::Error;
 
     use super::FullViewingKey;

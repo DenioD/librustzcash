@@ -1,10 +1,13 @@
-use bellman::groth16::{verify_proof, PreparedVerifyingKey, Proof};
+use bellman::{
+    gadgets::multipack,
+    groth16::{verify_proof, PreparedVerifyingKey, Proof},
+};
 use ff::Field;
 use pairing::bls12_381::{Bls12, Fr};
-use sapling_crypto::{
-    circuit::multipack,
-    jubjub::{edwards, FixedGenerators, JubjubBls12, Unknown},
+use zcash_primitives::jubjub::{edwards, FixedGenerators, JubjubBls12, Unknown};
+use zcash_primitives::{
     redjubjub::{PublicKey, Signature},
+    transaction::components::Amount,
 };
 
 use super::compute_value_balance;
@@ -15,14 +18,15 @@ fn is_small_order<Order>(p: &edwards::Point<Bls12, Order>, params: &JubjubBls12)
 
 /// A context object for verifying the Sapling components of a Zcash transaction.
 pub struct SaplingVerificationContext {
-    bvk: edwards::Point<Bls12, Unknown>,
+    // (sum of the Spend value commitments) - (sum of the Output value commitments)
+    cv_sum: edwards::Point<Bls12, Unknown>,
 }
 
 impl SaplingVerificationContext {
     /// Construct a new context to be used with a single transaction.
     pub fn new() -> Self {
         SaplingVerificationContext {
-            bvk: edwards::Point::zero(),
+            cv_sum: edwards::Point::zero(),
         }
     }
 
@@ -51,10 +55,10 @@ impl SaplingVerificationContext {
         // Accumulate the value commitment in the context
         {
             let mut tmp = cv.clone();
-            tmp = tmp.add(&self.bvk, params);
+            tmp = tmp.add(&self.cv_sum, params);
 
             // Update the context
-            self.bvk = tmp;
+            self.cv_sum = tmp;
         }
 
         // Grab the nullifier as a sequence of bytes
@@ -79,12 +83,12 @@ impl SaplingVerificationContext {
         // Construct public input for circuit
         let mut public_input = [Fr::zero(); 7];
         {
-            let (x, y) = rk.0.into_xy();
+            let (x, y) = rk.0.to_xy();
             public_input[0] = x;
             public_input[1] = y;
         }
         {
-            let (x, y) = cv.into_xy();
+            let (x, y) = cv.to_xy();
             public_input[2] = x;
             public_input[3] = y;
         }
@@ -134,21 +138,21 @@ impl SaplingVerificationContext {
         {
             let mut tmp = cv.clone();
             tmp = tmp.negate(); // Outputs subtract from the total.
-            tmp = tmp.add(&self.bvk, params);
+            tmp = tmp.add(&self.cv_sum, params);
 
             // Update the context
-            self.bvk = tmp;
+            self.cv_sum = tmp;
         }
 
         // Construct public input for circuit
         let mut public_input = [Fr::zero(); 5];
         {
-            let (x, y) = cv.into_xy();
+            let (x, y) = cv.to_xy();
             public_input[0] = x;
             public_input[1] = y;
         }
         {
-            let (x, y) = epk.into_xy();
+            let (x, y) = epk.to_xy();
             public_input[2] = x;
             public_input[3] = y;
         }
@@ -169,13 +173,13 @@ impl SaplingVerificationContext {
     /// have been checked before calling this function.
     pub fn final_check(
         &self,
-        value_balance: i64,
+        value_balance: Amount,
         sighash_value: &[u8; 32],
         binding_sig: Signature,
         params: &JubjubBls12,
     ) -> bool {
-        // Obtain current bvk from the context
-        let mut bvk = PublicKey(self.bvk.clone());
+        // Obtain current cv_sum from the context
+        let mut bvk = PublicKey(self.cv_sum.clone());
 
         // Compute value balance
         let mut value_balance = match compute_value_balance(value_balance, params) {
@@ -183,7 +187,7 @@ impl SaplingVerificationContext {
             None => return false,
         };
 
-        // Subtract value_balance from current bvk to get final bvk
+        // Subtract value_balance from current cv_sum to get final bvk
         value_balance = value_balance.negate();
         bvk.0 = bvk.0.add(&value_balance, params);
 
