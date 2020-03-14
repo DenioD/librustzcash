@@ -1,12 +1,13 @@
 use ff::{
-    Field, LegendreSymbol, PrimeField, PrimeFieldDecodingError,
-    PrimeFieldRepr, ScalarEngine, SqrtField};
+    Field, LegendreSymbol, PrimeField, PrimeFieldDecodingError, PrimeFieldRepr, ScalarEngine,
+    SqrtField,
+};
 use group::{CurveAffine, CurveProjective, EncodedPoint, GroupDecodingError};
 use pairing::{Engine, PairingCurveAffine};
 
+use rand_core::RngCore;
 use std::cmp::Ordering;
 use std::fmt;
-use rand::{Rand, Rng};
 use std::num::Wrapping;
 
 const MODULUS_R: Wrapping<u32> = Wrapping(64513);
@@ -20,13 +21,11 @@ impl fmt::Display for Fr {
     }
 }
 
-impl Rand for Fr {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        Fr(Wrapping(rng.gen()) % MODULUS_R)
-    }
-}
-
 impl Field for Fr {
+    fn random<R: RngCore>(rng: &mut R) -> Self {
+        Fr(Wrapping(rng.next_u32()) % MODULUS_R)
+    }
+
     fn zero() -> Self {
         Fr(Wrapping(0))
     }
@@ -82,9 +81,13 @@ impl SqrtField for Fr {
     fn legendre(&self) -> LegendreSymbol {
         // s = self^((r - 1) // 2)
         let s = self.pow([32256]);
-        if s == <Fr as Field>::zero() { LegendreSymbol::Zero }
-        else if s == <Fr as Field>::one() { LegendreSymbol::QuadraticResidue }
-        else { LegendreSymbol::QuadraticNonResidue }
+        if s == <Fr as Field>::zero() {
+            LegendreSymbol::Zero
+        } else if s == <Fr as Field>::one() {
+            LegendreSymbol::QuadraticResidue
+        } else {
+            LegendreSymbol::QuadraticNonResidue
+        }
     }
 
     fn sqrt(&self) -> Option<Self> {
@@ -102,7 +105,7 @@ impl SqrtField for Fr {
                 let mut m = Fr::S;
 
                 while t != <Fr as Field>::one() {
-                let mut i = 1;
+                    let mut i = 1;
                     {
                         let mut t2i = t;
                         t2i.square();
@@ -142,12 +145,6 @@ impl Ord for FrRepr {
 impl PartialOrd for FrRepr {
     fn partial_cmp(&self, other: &FrRepr) -> Option<Ordering> {
         Some(self.cmp(other))
-    }
-}
-
-impl Rand for FrRepr {
-    fn rand<R: Rng>(rng: &mut R) -> Self {
-        FrRepr([rng.gen()])
     }
 }
 
@@ -266,15 +263,18 @@ impl Engine for DummyEngine {
     type G2Affine = Fr;
     type Fq = Fr;
     type Fqe = Fr;
-    
+
     // TODO: This should be F_645131 or something. Doesn't matter for now.
     type Fqk = Fr;
 
     fn miller_loop<'a, I>(i: I) -> Self::Fqk
-        where I: IntoIterator<Item=&'a (
-                                    &'a <Self::G1Affine as PairingCurveAffine>::Prepared,
-                                    &'a <Self::G2Affine as PairingCurveAffine>::Prepared
-                               )>
+    where
+        I: IntoIterator<
+            Item = &'a (
+                &'a <Self::G1Affine as PairingCurveAffine>::Prepared,
+                &'a <Self::G2Affine as PairingCurveAffine>::Prepared,
+            ),
+        >,
     {
         let mut acc = <Fr as Field>::zero();
 
@@ -288,8 +288,7 @@ impl Engine for DummyEngine {
     }
 
     /// Perform final exponentiation of the result of a miller loop.
-    fn final_exponentiation(this: &Self::Fqk) -> Option<Self::Fqk>
-    {
+    fn final_exponentiation(this: &Self::Fqk) -> Option<Self::Fqk> {
         Some(*this)
     }
 }
@@ -299,6 +298,10 @@ impl CurveProjective for Fr {
     type Base = Fr;
     type Scalar = Fr;
     type Engine = DummyEngine;
+
+    fn random<R: RngCore>(rng: &mut R) -> Self {
+        <Fr as Field>::random(rng)
+    }
 
     fn zero() -> Self {
         <Fr as Field>::zero()
@@ -312,9 +315,7 @@ impl CurveProjective for Fr {
         <Fr as Field>::is_zero(self)
     }
 
-    fn batch_normalization(_: &mut [Self]) {
-        
-    }
+    fn batch_normalization(_: &mut [Self]) {}
 
     fn is_normalized(&self) -> bool {
         true
@@ -336,8 +337,7 @@ impl CurveProjective for Fr {
         <Fr as Field>::negate(self);
     }
 
-    fn mul_assign<S: Into<<Self::Scalar as PrimeField>::Repr>>(&mut self, other: S)
-    {
+    fn mul_assign<S: Into<<Self::Scalar as PrimeField>::Repr>>(&mut self, other: S) {
         let tmp = Fr::from_repr(other.into()).unwrap();
 
         <Fr as Field>::mul_assign(self, &tmp);
@@ -419,8 +419,7 @@ impl CurveAffine for Fr {
         <Fr as Field>::negate(self);
     }
 
-    fn mul<S: Into<<Self::Scalar as PrimeField>::Repr>>(&self, other: S) -> Self::Projective
-    {
+    fn mul<S: Into<<Self::Scalar as PrimeField>::Repr>>(&self, other: S) -> Self::Projective {
         let mut res = *self;
         let tmp = Fr::from_repr(other.into()).unwrap();
 

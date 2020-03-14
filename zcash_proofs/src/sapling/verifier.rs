@@ -1,10 +1,13 @@
-use bellman::groth16::{verify_proof, PreparedVerifyingKey, Proof};
+use bellman::{
+    gadgets::multipack,
+    groth16::{verify_proof, PreparedVerifyingKey, Proof},
+};
 use ff::Field;
 use pairing::bls12_381::{Bls12, Fr};
-use sapling_crypto::{
-    circuit::multipack,
-    jubjub::{edwards, FixedGenerators, JubjubBls12, Unknown},
+use zcash_primitives::jubjub::{edwards, FixedGenerators, JubjubBls12, Unknown};
+use zcash_primitives::{
     redjubjub::{PublicKey, Signature},
+    transaction::components::Amount,
 };
 
 use super::compute_value_balance;
@@ -169,7 +172,7 @@ impl SaplingVerificationContext {
     /// have been checked before calling this function.
     pub fn final_check(
         &self,
-        value_balance: i64,
+        value_balance: Amount,
         sighash_value: &[u8; 32],
         binding_sig: Signature,
         params: &JubjubBls12,

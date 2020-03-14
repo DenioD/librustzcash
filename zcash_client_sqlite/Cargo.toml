@@ -1,0 +1,27 @@
+[package]
+name = "zcash_client_sqlite"
+version = "0.0.0"
+authors = [
+    "Jack Grigg <jack@z.cash>",
+]
+edition = "2018"
+
+[dependencies]
+bech32 = "0.7"
+bs58 = { version = "0.2", features = ["check"] }
+ff = { path = "../ff" }
+pairing = { path = "../pairing" }
+protobuf = "2"
+rusqlite = { version = "0.20", features = ["bundled"] }
+time = "0.1"
+zcash_client_backend = { path = "../zcash_client_backend" }
+zcash_primitives = { path = "../zcash_primitives" }
+
+[dev-dependencies]
+rand_core = "0.5"
+rand_os = "0.2"
+tempfile = "3"
+zcash_proofs = { path = "../zcash_proofs" }
+
+[features]
+mainnet = []
