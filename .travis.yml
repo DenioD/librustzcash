@@ -1,8 +1,18 @@
 language: rust
+
 rust:
   - 1.32.0
-
+  
+env:
+  global:
+    # See https://stackoverflow.com/a/43339593
+    - RUST_BACKTRACE=1
+    
+before_cache:
+  - rm -rf "$TRAVIS_HOME/.cargo/registry/src"
+  
 cache: cargo
 
 script:
+  - cargo build --verbose --release --all
   - cargo test --verbose --release --all
